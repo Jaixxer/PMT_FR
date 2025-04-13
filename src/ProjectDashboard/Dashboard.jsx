@@ -6,9 +6,11 @@ import CreateTicket from '../components/Tickets/CreateTicket';
 import TicketsCard from '../components/Tickets/TicketsCard';
 import { FaPlus } from 'react-icons/fa';
 import { motion } from 'framer-motion';
+import TaskCreation from '../Tasks/taskCreation';
 
 const Dashboard = () => {
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
+  const [isTaskOpen, setIsTaskOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#EEEEEE]/30">
@@ -35,6 +37,7 @@ const Dashboard = () => {
                   className="p-2 bg-[#00ADB5] rounded-full text-white shadow-sm"
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsTaskOpen(true)} // Changed to open TaskCreation
                 >
                   <FaPlus size={12} />
                 </motion.button>
@@ -50,7 +53,7 @@ const Dashboard = () => {
                   className="p-2 bg-[#00ADB5] rounded-full text-white shadow-sm"
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsCreateTicketOpen(true)}
+                  onClick={() => setIsCreateTicketOpen(true)} // Changed to open CreateTicket
                 >
                   <FaPlus size={12} />
                 </motion.button>
@@ -63,6 +66,7 @@ const Dashboard = () => {
         </div>
       </div>
       
+      <TaskCreation isOpen={isTaskOpen} onClose={() => setIsTaskOpen(false)} />
       {/* Create Ticket Modal */}
       <CreateTicket 
         isOpen={isCreateTicketOpen} 
