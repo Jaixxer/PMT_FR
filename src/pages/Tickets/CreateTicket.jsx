@@ -1,504 +1,415 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaPaperclip } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { 
+  FaArrowLeft, FaCalendarAlt, FaExclamationTriangle,
+  FaBug, FaStar, FaTasks, FaArrowUp 
+} from 'react-icons/fa';
+import { motion } from 'framer-motion';
 import axios from 'axios';
+import { Link, useNavigate } from 'react-router';
 
-const CreateTicket = ({ isOpen, onClose, projectId }) => {
-  // Form state with initial values
-  const [formData, setFormData] = useState({
+const CreateTicket = () => {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [teams, setTeams] = useState([]);
+  const [users, setUsers] = useState([]);
+
+  // Form fields
+  const [ticketData, setTicketData] = useState({
     title: '',
     description: '',
     status: 'Open',
     priority: 'Medium',
-    type: 'Bug',
+    type: 'Task',
     assigned_user: '',
     team_id: '',
     due_date: '',
-    project_id: "259624da-1917-42e2-8d30-834e0a68b875", // Static project ID as specified
-    attachments: []
+    // Using hardcoded project ID for now - in a real app this would come from context/params
+    project_id: '259624da-1917-42e2-8d30-834e0a68b875'
   });
 
-  // UI state
-  const [users, setUsers] = useState([]);
-  const [teams, setTeams] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Validation state
   const [errors, setErrors] = useState({});
-  const [apiError, setApiError] = useState(null);
-  const [success, setSuccess] = useState(false);
 
-  // Reset component state when modal opens
+  // Type options with icons
+  const typeOptions = [
+    { value: 'Bug', label: 'Bug', icon: <FaBug className="text-red-600" /> },
+    { value: 'Feature', label: 'Feature', icon: <FaStar className="text-amber-500" /> },
+    { value: 'Task', label: 'Task', icon: <FaTasks className="text-blue-600" /> },
+    { value: 'Improvement', label: 'Improvement', icon: <FaArrowUp className="text-green-600" /> }
+  ];
+
+  // Status options
+  const statusOptions = ['Open', 'In Progress', 'Review', 'Completed'];
+
+  // Priority options
+  const priorityOptions = ['Low', 'Medium', 'High'];
+
+  // Load teams and users for assignment
   useEffect(() => {
-    if (isOpen) {
-      // Reset form and UI state
-      setFormData({
-        title: '',
-        description: '',
-        status: 'Open',
-        priority: 'Medium',
-        type: 'Bug',
-        assigned_user: '',
-        team_id: '',
-        due_date: '',
-        project_id: "259624da-1917-42e2-8d30-834e0a68b875", // Static project ID
-        attachments: []
-      });
-      
-      setErrors({});
-      setApiError(null);
-      setSuccess(false);
-      
-      // Fetch required data
-      fetchUsers();
-      fetchTeams();
-    }
-  }, [isOpen]);
+    async function fetchData() {
+      try {
+        const token = localStorage.getItem('Authentication');
+        if (!token) {
+          setError('Authentication token not found');
+          return;
+        }
 
-  // API calls using useCallback to prevent unnecessary re-renders
-  const fetchUsers = useCallback(async () => {
-    const token = localStorage.getItem('Authentication');
-    if (!token) {
-      setApiError('Authentication token not found. Please log in again.');
-      return;
+        // Fetch teams
+        const teamsResponse = await axios.get(
+          'http://localhost:8383/api/team/teams',
+          { headers: { Authentication: token } }
+        );
+        
+        if (teamsResponse.data?.teams) {
+          setTeams(teamsResponse.data.teams);
+        }
+
+        // Fetch users - Updated to use the correct endpoint from TaskCreation component
+        const usersResponse = await axios.get(
+          'http://localhost:8383/api/info/all',
+          { headers: { Authentication: token } }
+        );
+        
+        if (usersResponse.data) {
+          setUsers(usersResponse.data);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setError('Failed to load teams and users.');
+      }
     }
-    
-    try {
-      const response = await axios.get('http://localhost:8383/api/info/all', {
-        headers: { Authentication: token },
-      });
-      setUsers(response.data);
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      setApiError(err.response?.data?.message || 'Failed to load users data.');
-    }
+
+    fetchData();
   }, []);
 
-  const fetchTeams = useCallback(async () => {
-    const token = localStorage.getItem('Authentication');
-    if (!token) return;
-    
-    try {
-      const response = await axios.get('http://localhost:8383/api/team/teams', {
-        headers: { Authentication: token },
-      });
-      setTeams(response.data.teams || []);
-    } catch (err) {
-      console.error('Error fetching teams:', err);
-      setApiError(err.response?.data?.message || 'Failed to load teams data.');
-    }
-  }, []);
-
-  // Form field handlers
-  const handleChange = useCallback((e) => {
+  // Handle form input changes
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear field-specific error when user makes changes
+    setTicketData({
+      ...ticketData,
+      [name]: value
+    });
+
+    // Clear error for this field when user types
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: null }));
+      setErrors({
+        ...errors,
+        [name]: ''
+      });
     }
-  }, [errors]);
+  };
 
-  const handleFileChange = useCallback((e) => {
-    const files = Array.from(e.target.files);
-    const validFiles = files.filter(file => file.size <= 10 * 1024 * 1024); // 10MB limit
-    
-    if (validFiles.length < files.length) {
-      setErrors(prev => ({ 
-        ...prev, 
-        attachments: 'Some files exceed the maximum size of 10MB and were not added' 
-      }));
-    }
-    
-    setFormData(prev => ({ 
-      ...prev, 
-      attachments: [...prev.attachments, ...validFiles] 
-    }));
-  }, []);
-
-  const removeFile = useCallback((indexToRemove) => {
-    setFormData(prev => ({
-      ...prev,
-      attachments: prev.attachments.filter((_, index) => index !== indexToRemove)
-    }));
-  }, []);
-
-  // Form validation
-  const validateForm = useCallback(() => {
+  // Validate form
+  const validateForm = () => {
     const newErrors = {};
-    
-    if (!formData.title.trim()) {
+
+    if (!ticketData.title.trim()) {
       newErrors.title = 'Title is required';
-    } else if (formData.title.trim().length < 3) {
-      newErrors.title = 'Title must be at least 3 characters';
     }
-    
+
+    if (!ticketData.description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+
+    // Due date validation - must be current date or future date
+    if (ticketData.due_date) {
+      const dueDate = new Date(ticketData.due_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset time part for accurate day comparison
+      
+      if (dueDate < today) {
+        newErrors.due_date = 'Due date cannot be in the past';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData]);
+  };
 
-  // Form submission with updated API endpoint and format
-  const handleSubmit = useCallback(async (e) => {
+  // Handle form submission
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setError('');
+    setSuccess(false);
+
     if (!validateForm()) {
       return;
     }
-    
+
     setLoading(true);
-    setApiError(null);
-    
-    const token = localStorage.getItem('Authentication');
-    if (!token) {
-      setApiError('Authentication token not found. Please log in again.');
-      setLoading(false);
-      return;
-    }
     
     try {
-      // Format the ticket data according to the specified pattern
-      const ticketData = {
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        status: formData.status,
-        priority: formData.priority,
-        type: formData.type,
-        assigned_user: formData.assigned_user,
-        team_id: formData.team_id,
-        due_date: formData.due_date,
-        project_id: "259624da-1917-42e2-8d30-834e0a68b875", // Static project ID
-        attachments: "" // Empty string as specified
-      };
-      
-      // Make the API call to the correct endpoint
-      const response = await axios.post('http://localhost:8383/api/ticket/createticket', ticketData, {
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authentication': token 
-        }
-      });
-      
-      console.log('Ticket created successfully:', response.data);
-      setSuccess(true);
-      
-      setTimeout(() => {
-        onClose();
-      }, 1500);
-      
-    } catch (err) {
-      console.error('Error creating ticket:', err);
-      setApiError(err.response?.data?.message || 'Failed to create ticket. Please try again.');
+      const token = localStorage.getItem('Authentication');
+      if (!token) {
+        setError('Authentication token not found');
+        setLoading(false);
+        return;
+      }
+
+      const response = await axios.post(
+        'http://localhost:8383/api/ticket/createticket',
+        ticketData,
+        { headers: { Authentication: token } }
+      );
+
+      if (response.data?.message) {
+        setSuccess(true);
+        // Reset form or navigate to ticket list
+        setTimeout(() => {
+          navigate('/tickets');
+        }, 1500);
+      } else {
+        setError('Failed to create ticket. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating ticket:', error);
+      setError(error.response?.data?.error || 'Failed to create ticket. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [formData, onClose, validateForm]);
-
-  if (!isOpen) return null;
+  };
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 bg-[#222831] bg-opacity-50 flex items-center justify-center z-50" 
-           role="dialog"
-           aria-modal="true">
-        <motion.div 
-          className="border-[2px] border-[#393E46] rounded-lg bg-white shadow-lg transition-all duration-300 ease-in-out hover:shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden"
+    <div className="p-6 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-[#222831]">Create New Ticket</h1>
+          <p className="text-[#393E46] mt-2">Create a new ticket for tracking bugs, features and tasks</p>
+        </div>
+        <Link to="/tickets" className="inline-flex items-center text-[#393E46] hover:text-[#222831] transition-colors">
+          <FaArrowLeft className="mr-2" />
+          Back to Tickets
+        </Link>
+      </div>
+
+      {/* Success Message */}
+      {success && (
+        <motion.div
+          className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-4 mb-6"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.2 }}
         >
-          {/* Header */}
-          <div className="px-6 py-4 border-b border-[#393E46] flex justify-between items-center">
-            <h2 className="font-medium text-[25px] text-gray-800">Create New Ticket</h2>
-            <button 
-              onClick={onClose}
-              className="text-[#393E46] hover:text-[#222831] transition-colors"
-              aria-label="Close modal"
+          Ticket created successfully! Redirecting to tickets list...
+        </motion.div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <motion.div
+          className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 mb-6"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="flex items-center">
+            <FaExclamationTriangle className="mr-2" />
+            <span>{error}</span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Ticket Form */}
+      <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
+        {/* Title */}
+        <div className="mb-6">
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+            Ticket Title <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            id="title"
+            name="title"
+            value={ticketData.title}
+            onChange={handleChange}
+            placeholder="Enter ticket title"
+            className={`block w-full rounded-md border ${
+              errors.title ? 'border-red-300' : 'border-gray-300'
+            } shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[#00ADB5] focus:border-transparent`}
+          />
+          {errors.title && (
+            <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+          )}
+        </div>
+
+        {/* Description */}
+        <div className="mb-6">
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+            Description <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            value={ticketData.description}
+            onChange={handleChange}
+            rows="4"
+            placeholder="Describe the ticket in detail"
+            className={`block w-full rounded-md border ${
+              errors.description ? 'border-red-300' : 'border-gray-300'
+            } shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[#00ADB5] focus:border-transparent`}
+          ></textarea>
+          {errors.description && (
+            <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+          )}
+        </div>
+
+        {/* Two columns for Status, Priority, Type */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {/* Status */}
+          <div>
+            <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+              Status
+            </label>
+            <select
+              id="status"
+              name="status"
+              value={ticketData.status}
+              onChange={handleChange}
+              className="block w-full rounded-md border border-gray-300 shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[#00ADB5] focus:border-transparent"
             >
-              <FaTimes size={18} />
-            </button>
+              {statusOptions.map(status => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
           </div>
 
-          {/* Form */}
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-130px)]">
-            {success && (
-              <div className="mb-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded-md"
-                   role="alert">
-                Ticket created successfully!
-              </div>
-            )}
-            
-            {apiError && (
-              <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md"
-                   role="alert">
-                {apiError}
-              </div>
-            )}
-            
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-              {/* Title Input */}
-              <div className="relative">
-                <input
-                  type="text"
-                  id="title"
-                  name="title"
-                  required
-                  placeholder=" "
-                  value={formData.title}
-                  onChange={handleChange}
-                  aria-invalid={errors.title ? "true" : "false"}
-                  className={`peer border-2 ${errors.title ? 'border-red-300' : 'border-gray-300'} p-2.5 rounded-md w-full
-                            transition-all duration-300 focus:border-[#00ADB5]
-                            focus:outline-none focus:ring-2 focus:ring-[#00ADB5]`}
-                />
-                <span className="absolute left-3 top-2.5 transition-all duration-300 pointer-events-none text-gray-500
-                               peer-focus:text-sm peer-focus:text-[#00ADB5] peer-focus:-top-2.5 peer-focus:bg-white peer-focus:px-1
-                               peer-placeholder-shown:top-2.5 peer-placeholder-shown:text-base
-                               peer-not-placeholder-shown:text-sm peer-not-placeholder-shown:text-[#00ADB5] peer-not-placeholder-shown:-top-2.5 peer-not-placeholder-shown:bg-white peer-not-placeholder-shown:px-1">
-                  Title <span className="text-red-500">*</span>
-                </span>
-                {errors.title && (
-                  <p className="mt-1 text-xs text-red-500">{errors.title}</p>
-                )}
-              </div>
+          {/* Priority */}
+          <div>
+            <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
+              Priority
+            </label>
+            <select
+              id="priority"
+              name="priority"
+              value={ticketData.priority}
+              onChange={handleChange}
+              className="block w-full rounded-md border border-gray-300 shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[#00ADB5] focus:border-transparent"
+            >
+              {priorityOptions.map(priority => (
+                <option key={priority} value={priority}>{priority}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-              {/* Description */}
-              <div className="relative">
-                <textarea
-                  id="description"
-                  name="description"
-                  rows={4}
-                  placeholder=" "
-                  value={formData.description}
-                  onChange={handleChange}
-                  className="peer border-2 border-gray-300 p-2.5 rounded-md w-full
-                            transition-all duration-300 focus:border-[#00ADB5]
-                            focus:outline-none focus:ring-2 focus:ring-[#00ADB5] resize-none"
-                ></textarea>
-                <span className="absolute left-3 top-2.5 transition-all duration-300 pointer-events-none text-gray-500
-                               peer-focus:text-sm peer-focus:text-[#00ADB5] peer-focus:-top-2.5 peer-focus:bg-white peer-focus:px-1
-                               peer-placeholder-shown:top-2.5 peer-placeholder-shown:text-base
-                               peer-not-placeholder-shown:text-sm peer-not-placeholder-shown:text-[#00ADB5] peer-not-placeholder-shown:-top-2.5 peer-not-placeholder-shown:bg-white peer-not-placeholder-shown:px-1">
-                  Description
-                </span>
-              </div>
-
-              {/* Status, Priority, Type - First Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Status */}
-                <div className="relative">
-                  <select
-                    id="status"
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                    className="border-2 border-gray-300 p-2.5 rounded-md w-full
-                              transition-all duration-300 focus:border-[#00ADB5]
-                              focus:outline-none focus:ring-2 focus:ring-[#00ADB5]
-                              appearance-none bg-white"
-                  >
-                    <option value="Open">Open</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Review">Review</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                  <label htmlFor="status" className="absolute left-3 -top-2.5 text-sm font-medium text-[#00ADB5] bg-white px-1">
-                    Status
-                  </label>
-                </div>
-
-                {/* Priority */}
-                <div className="relative">
-                  <select
-                    id="priority"
-                    name="priority"
-                    value={formData.priority}
-                    onChange={handleChange}
-                    className="border-2 border-gray-300 p-2.5 rounded-md w-full
-                              transition-all duration-300 focus:border-[#00ADB5]
-                              focus:outline-none focus:ring-2 focus:ring-[#00ADB5]
-                              appearance-none bg-white"
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </select>
-                  <label htmlFor="priority" className="absolute left-3 -top-2.5 text-sm font-medium text-[#00ADB5] bg-white px-1">
-                    Priority
-                  </label>
-                </div>
-
-                {/* Type */}
-                <div className="relative">
-                  <select
-                    id="type"
+        {/* Type with icons */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Ticket Type
+          </label>
+          <div className="flex flex-wrap gap-4">
+            {typeOptions.map(type => (
+              <div key={type.value} className="flex-1 min-w-[100px]">
+                <label 
+                  className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-all ${
+                    ticketData.type === type.value
+                      ? 'border-[#00ADB5] bg-[#00adb51a]'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
                     name="type"
-                    value={formData.type}
+                    value={type.value}
+                    checked={ticketData.type === type.value}
                     onChange={handleChange}
-                    className="border-2 border-gray-300 p-2.5 rounded-md w-full
-                              transition-all duration-300 focus:border-[#00ADB5]
-                              focus:outline-none focus:ring-2 focus:ring-[#00ADB5]
-                              appearance-none bg-white"
-                  >
-                    <option value="Bug">Bug</option>
-                    <option value="Feature">Feature</option>
-                    <option value="Task">Task</option>
-                    <option value="Improvement">Improvement</option>
-                  </select>
-                  <label htmlFor="type" className="absolute left-3 -top-2.5 text-sm font-medium text-[#00ADB5] bg-white px-1">
-                    Type
-                  </label>
-                </div>
-              </div>
-
-              {/* Assigned User, Team, Due Date - Second Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Assigned User */}
-                <div className="relative">
-                  <select
-                    id="assigned_user"
-                    name="assigned_user"
-                    value={formData.assigned_user}
-                    onChange={handleChange}
-                    className="border-2 border-gray-300 p-2.5 rounded-md w-full
-                              transition-all duration-300 focus:border-[#00ADB5]
-                              focus:outline-none focus:ring-2 focus:ring-[#00ADB5]
-                              appearance-none bg-white"
-                  >
-                    <option value="">Select User</option>
-                    {users.map(user => (
-                      <option key={user.uid} value={user.uid}>
-                        {user.email}
-                      </option>
-                    ))}
-                  </select>
-                  <label htmlFor="assigned_user" className="absolute left-3 -top-2.5 text-sm font-medium text-[#00ADB5] bg-white px-1">
-                    Assigned User
-                  </label>
-                </div>
-
-                {/* Team */}
-                <div className="relative">
-                  <select
-                    id="team_id"
-                    name="team_id"
-                    value={formData.team_id}
-                    onChange={handleChange}
-                    className="border-2 border-gray-300 p-2.5 rounded-md w-full
-                              transition-all duration-300 focus:border-[#00ADB5]
-                              focus:outline-none focus:ring-2 focus:ring-[#00ADB5]
-                              appearance-none bg-white"
-                  >
-                    <option value="">Select Team</option>
-                    {teams.map(team => (
-                      <option key={team.team_id} value={team.team_id}>
-                        {team.team_name}
-                      </option>
-                    ))}
-                  </select>
-                  <label htmlFor="team_id" className="absolute left-3 -top-2.5 text-sm font-medium text-[#00ADB5] bg-white px-1">
-                    Team
-                  </label>
-                </div>
-
-                {/* Due Date */}
-                <div className="relative">
-                  <input
-                    type="date"
-                    id="due_date"
-                    name="due_date"
-                    value={formData.due_date}
-                    onChange={handleChange}
-                    min={new Date().toISOString().split('T')[0]} 
-                    className="border-2 border-gray-300 p-2.5 rounded-md w-full
-                              transition-all duration-300 focus:border-[#00ADB5]
-                              focus:outline-none focus:ring-2 focus:ring-[#00ADB5]
-                              appearance-none bg-white"
+                    className="sr-only"
                   />
-                  <label htmlFor="due_date" className="absolute left-3 -top-2.5 text-sm font-medium text-[#00ADB5] bg-white px-1">
-                    Due Date
-                  </label>
-                </div>
-              </div>
-
-              {/* Attachments */}
-              <div>
-                <label className="block text-sm font-medium text-[#222831] mb-2">
-                  Attachments
+                  <div className="text-xl mb-2">{type.icon}</div>
+                  <span className="text-sm font-medium">{type.label}</span>
                 </label>
-                
-                <div className="relative border-2 border-dashed border-gray-300 rounded-md transition-all duration-300 hover:border-[#00ADB5] p-6">
-                  <div className="flex flex-col items-center justify-center">
-                    <FaPaperclip className="text-gray-500 mb-2" size={24} />
-                    <p className="text-sm text-gray-500 mb-1">Drag & drop files here or click to browse</p>
-                    <p className="text-xs text-gray-400">Maximum file size: 10MB</p>
-                  </div>
-                  <input
-                    type="file"
-                    multiple
-                    className="cursor-pointer absolute inset-0 opacity-0"
-                    onChange={handleFileChange}
-                  />
-                </div>
-                {errors.attachments && (
-                  <p className="mt-1 text-xs text-red-500">{errors.attachments}</p>
-                )}
-
-                {/* File List */}
-                {formData.attachments.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <p className="text-sm font-medium text-[#222831]">Selected Files:</p>
-                    <div className="border-2 border-gray-300 rounded-md max-h-40 overflow-y-auto divide-y">
-                      {formData.attachments.map((file, index) => (
-                        <div key={index} className="flex justify-between items-center p-3 hover:bg-gray-50 transition-colors">
-                          <div className="flex items-center">
-                            <FaPaperclip className="text-gray-500 mr-2" size={14} />
-                            <span className="text-sm text-[#222831] truncate max-w-[200px]">
-                              {file.name}
-                            </span>
-                            <span className="text-xs text-gray-500 ml-2">
-                              ({(file.size / 1024).toFixed(2)} KB)
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeFile(index)}
-                            className="text-gray-500 hover:text-red-500 transition-colors"
-                            aria-label={`Remove file ${file.name}`}
-                          >
-                            <FaTimes size={14} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-            </form>
+            ))}
+          </div>
+        </div>
+
+        {/* Two columns for Assignment */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {/* Assigned User */}
+          <div>
+            <label htmlFor="assigned_user" className="block text-sm font-medium text-gray-700 mb-1">
+              Assign To User
+            </label>
+            <select
+              id="assigned_user"
+              name="assigned_user"
+              value={ticketData.assigned_user}
+              onChange={handleChange}
+              className="block w-full rounded-md border border-gray-300 shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[#00ADB5] focus:border-transparent"
+            >
+              <option value="">Select a user</option>
+              {users.map(user => (
+                <option key={user.uid} value={user.uid}>{user.username}</option>
+              ))}
+            </select>
           </div>
 
-          {/* Footer with action buttons */}
-          <div className="px-6 py-4 border-t border-[#393E46] flex justify-end gap-3">
+          {/* Team */}
+          <div>
+            <label htmlFor="team_id" className="block text-sm font-medium text-gray-700 mb-1">
+              Assign To Team
+            </label>
+            <select
+              id="team_id"
+              name="team_id"
+              value={ticketData.team_id}
+              onChange={handleChange}
+              className="block w-full rounded-md border border-gray-300 shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[#00ADB5] focus:border-transparent"
+            >
+              <option value="">Select a team</option>
+              {teams.map(team => (
+                <option key={team.team_id} value={team.team_id}>{team.team_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Due Date */}
+        <div className="mb-6">
+          <label htmlFor="due_date" className="block text-sm font-medium text-gray-700 mb-1">
+            Due Date
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FaCalendarAlt className="text-gray-400" />
+            </div>
+            <input
+              type="date"
+              id="due_date"
+              name="due_date"
+              value={ticketData.due_date}
+              onChange={handleChange}
+              className={`block w-full rounded-md border ${
+                errors.due_date ? 'border-red-300' : 'border-gray-300'
+              } shadow-sm py-2 pl-10 pr-3 focus:outline-none focus:ring-2 focus:ring-[#00ADB5] focus:border-transparent`}
+            />
+          </div>
+          {errors.due_date && (
+            <p className="mt-1 text-sm text-red-600">{errors.due_date}</p>
+          )}
+        </div>
+
+        {/* Form Actions */}
+        <div className="flex justify-end space-x-4 mt-8">
+          <Link to="/tickets">
             <button
-              onClick={onClose}
-              disabled={loading}
-              className="py-2.5 px-4 text-[#222831] bg-gray-100 font-medium rounded-md
-                        transition-all duration-300 hover:bg-gray-200"
+              type="button"
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className={`bg-[#00ADB5] py-2.5 px-4 text-white font-medium rounded-md
-                        transition-all duration-300 hover:bg-[#009da5]
-                        active:scale-95 hover:shadow-md ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
-            >
-              {loading ? 'Creating...' : 'Create Ticket'}
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+          </Link>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 bg-[#00ADB5] text-white rounded-md hover:bg-[#00969e] transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Creating...' : 'Create Ticket'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 };
 

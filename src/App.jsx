@@ -8,6 +8,8 @@ import TaskPage from './pages/Tasks/TaskPage.jsx';
 import TaskCreation from './pages/Tasks/TaskCreation.jsx';
 import Board from './pages/Board/BoardComponent.jsx';
 import AddMembers from './pages/Teams/AddMembers.jsx';
+import TicketsPage from './pages/Tickets/TicketsPage.jsx';
+import CreateTicket from './pages/Tickets/CreateTicket.jsx';
 
 function App() {
   return (
@@ -22,6 +24,9 @@ function App() {
         <Route path='/tasks' element={<TaskPage/>}/>
         <Route path='/board' element={<Board/>}/>
         <Route path='/team/members' element={<AddMembers/>}/>
+        {/* Ticket Routes */}
+        <Route path='/tickets' element={<TicketsPage/>}/>
+        <Route path='/tickets/create' element={<CreateTicket/>}/>
       </Routes>
     </div>
   )

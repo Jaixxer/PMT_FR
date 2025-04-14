@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaHome, FaTasks, FaThLarge, FaUserPlus, FaUsers, FaTicketAlt, FaChevronLeft } from 'react-icons/fa';
+import { FaHome, FaTasks, FaThLarge, FaUsers, FaTicketAlt, FaChevronLeft } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation } from 'react-router';
 
@@ -30,10 +30,8 @@ const Sidebar = () => {
     { icon: <FaHome size={18} />, label: 'Home', path: '/' },
     { icon: <FaTasks size={18} />, label: 'Tasks', path: '/tasks' },
     { icon: <FaThLarge size={18} />, label: 'Board', path: '/board' },
-    { icon: <FaUserPlus size={18} />, label: 'Add Members', path: '/members' },
-    { icon: <FaUsers size={18} />, label: 'Team', path: '/team' },
-    { icon: <FaTicketAlt size={18} />, label: 'Tickets', path: '/tickets' },
     { icon: <FaUsers size={18} />, label: 'Team Management', path: '/team/members' },
+    { icon: <FaTicketAlt size={18} />, label: 'Tickets', path: '/tickets' },
   ];
 
   return (
